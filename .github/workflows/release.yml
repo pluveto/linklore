@@ -1,0 +1,51 @@
+name: Build and Package on Tag
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+jobs:
+  build-and-release:
+    name: Build and Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+
+      - name: Test
+        run: make test
+
+      - name: Build
+        run: make all
+
+      - name: Create Release and Upload Assets
+        uses: Hs1r1us/Release-AIO@v1.0
+        env: 
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          asset_files: dist/
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+          body: 'Release'
+          draft: false
+          prerelease: false
+
+      - name: Create releases
+        run: |
+          for dir in dist/*; do
+            platform=$(basename "$dir")
+            zip -j "linklore-$platform.zip" "$dir"/*
+          done
+
+      - name: Upload releases to GitHub
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            linklore-*.zip
+          fail_on_unmatched_files: true
