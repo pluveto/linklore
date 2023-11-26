@@ -121,6 +121,9 @@ func loadConfig() Config {
 	if prefix == "" {
 		prefix = "/"
 	}
+	if config.outputFile == "" {
+		config.outputFile = strings.TrimSuffix(config.inputFile, filepath.Ext(config.inputFile)) + ".out.md"
+	}
 
 	config.inputFile = inputFile
 	config.outputFile = outputFile
@@ -172,10 +175,6 @@ func buildIndex(config Config) error {
 }
 
 func processFile(config Config) error {
-	if config.outputFile == "" {
-		config.outputFile = strings.TrimSuffix(config.inputFile, filepath.Ext(config.inputFile)) + ".out.md"
-	}
-
 	if !config.force {
 		if _, err := os.Stat(config.outputFile); err == nil {
 			return errors.New("output file already exists")
