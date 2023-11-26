@@ -87,10 +87,19 @@ func loadConfig() Config {
 
 	loadEnvVariables(&inputFile, &outputFile, &baseDir, &prefix, &force)
 
+	prefixDefault := "/"
+	prefixEnv := os.Getenv("LINKLORE_PREFIX")
+	prefixEnvAlias := os.Getenv("LINKLORE_BASE_URL")
+	if prefixEnv != "" {
+		prefixDefault = prefixEnv
+	} else if prefixEnvAlias != "" {
+		prefixDefault = prefixEnvAlias
+	}
+
 	flag.StringVar(&inputFile, "i", os.Getenv("LINKLORE_INPUT_FILE"), "input file")
 	flag.StringVar(&outputFile, "o", os.Getenv("LINKLORE_OUTPUT_FILE"), "output file")
 	flag.StringVar(&baseDir, "d", os.Getenv("LINKLORE_BASE_DIR"), "base directory")
-	flag.StringVar(&prefix, "p", os.Getenv("LINKLORE_PREFIX"), "prefix")
+	flag.StringVar(&prefix, "p", prefixDefault, "prefix")
 	flag.BoolVar(&force, "f", false, "force overwrite output file")
 
 	flag.Usage = func() {
@@ -230,16 +239,18 @@ func loadEnvVariables(inputFile, outputFile, baseDir, prefix *string, force *boo
 			continue
 		}
 		key, value := parts[0], parts[1]
-		switch strings.ToLower(key) {
-		case "input_file":
+		switch strings.ToUpper(key) {
+		case "LINKLORE_INPUT_FILE":
 			*inputFile = value
-		case "output_file":
+		case "LINKLORE_OUTPUT_FILE":
 			*outputFile = value
-		case "base_dir":
+		case "LINKLORE_BASE_DIR":
 			*baseDir = value
-		case "prefix":
+		case "LINKLORE_PREFIX":
 			*prefix = value
-		case "force":
+		case "LINKLORE_BASE_URL":
+			*prefix = value
+		case "LINKLORE_FORCE":
 			*force = value == "true" || value == "1"
 		}
 	}
