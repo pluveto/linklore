@@ -9,7 +9,7 @@ This is very useful when you want to share your notes. This program can help you
 The program can be executed using the following command:
 
 ```shell
-linklore -i <input file> [-d <dir>] [-o <output file>] [-p <prefix>] [-f]
+linklore -i <input file> [-d <dir>] [-o <output file>] [-p <prefix>] [-f] [-x <ignore patterns>]
 ```
 
 The available options are:
@@ -19,6 +19,7 @@ The available options are:
 - `-o <output file>`: Specifies the output file where the processed content will be saved. (Default: `<input file basename> + .out.md`)
 - `-p <prefix>`: Sets the prefix for the real links. (Default: `/`)
 - `-f`: Forces the program to overwrite the output file if it already exists.
+- `-x <ignore patterns>`: Specifies the patterns of files to be ignored. (Default: `.git,.github,.vscode,.idea,.env,node_modules,.obsidian,*.out.md`)
 
 You can also set these options using a `.env` file or environment variables:
 
@@ -27,6 +28,7 @@ You can also set these options using a `.env` file or environment variables:
 - `LINKLORE_BASE_DIR`
 - `LINKLORE_PREFIX` or `LINKLORE_BASE_URL`
 - `LINKLORE_FORCE`
+- `LINKLORE_IGNORE_PATTERNS`
 
 ## How it works
 

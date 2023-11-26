@@ -20,12 +20,13 @@ type FileInfo struct {
 }
 
 type Config struct {
-	inputFile  string
-	outputFile string
-	baseDir    string
-	prefix     string
-	force      bool
-	index      map[string]FileInfo
+	inputFile      string
+	outputFile     string
+	ignorePatterns []string
+	baseDir        string
+	prefix         string
+	force          bool
+	index          map[string]FileInfo
 }
 
 var (
@@ -65,6 +66,7 @@ func main() {
 		os.Exit(1)
 	}
 }
+
 func validateConfig(config Config) error {
 	if config.inputFile == "" {
 		return errors.New("input file is not specified")
@@ -75,32 +77,66 @@ func validateConfig(config Config) error {
 	if config.baseDir == "" {
 		return errors.New("base directory is not specified")
 	}
+	if config.ignorePatterns == nil {
+		return errors.New("bug: ignore patterns should not be nil, expect []")
+	}
+
+	for _, pattern := range config.ignorePatterns {
+		_, err := filepath.Match(pattern, "")
+		if err != nil {
+			return fmt.Errorf("invalid ignore pattern: %s (cannot be used with "+
+				"filepath.Match. see: https://golang.org/pkg/path/filepath/#Match)", pattern)
+		}
+
+		patternTrimmed := strings.TrimSpace(pattern)
+		if patternTrimmed == "" {
+			return fmt.Errorf("invalid ignore pattern: (emtpy string)")
+		}
+
+		if patternTrimmed != pattern {
+			return fmt.Errorf("invalid ignore pattern: %s (leading or trailing whitespace)", pattern)
+		}
+
+	}
 	return nil
 }
+
 func loadConfig() Config {
 	config := Config{
-		index: make(map[string]FileInfo),
+		index:          make(map[string]FileInfo),
+		ignorePatterns: []string{},
 	}
 
-	var inputFile, outputFile, baseDir, prefix string
-	var force bool
+	loadEnvVariables(&config)
+	loadDotEnvVariables(&config)
+	parseCommandLineFlags(&config)
+	setDefaultValues(&config)
 
-	loadEnvVariables(&inputFile, &outputFile, &baseDir, &prefix, &force)
+	return config
+}
 
-	prefixDefault := "/"
-	prefixEnv := os.Getenv("LINKLORE_PREFIX")
-	prefixEnvAlias := os.Getenv("LINKLORE_BASE_URL")
-	if prefixEnv != "" {
-		prefixDefault = prefixEnv
-	} else if prefixEnvAlias != "" {
-		prefixDefault = prefixEnvAlias
+func loadEnvVariables(config *Config) {
+	config.inputFile = getEnvOrDefault("LINKLORE_INPUT_FILE", "")
+	config.outputFile = getEnvOrDefault("LINKLORE_OUTPUT_FILE", "")
+	config.baseDir = getEnvOrDefault("LINKLORE_BASE_DIR", "")
+	config.prefix = getEnvOrDefault("LINKLORE_PREFIX", "")
+	config.prefix = getEnvOrDefault("LINKLORE_BASE_URL", config.prefix)
+	ignorePatternsRaw := getEnvOrDefault("LINKLORE_IGNORE", "")
+	if ignorePatternsRaw != "" {
+		config.ignorePatterns = strings.Split(ignorePatternsRaw, ",")
 	}
+}
 
-	flag.StringVar(&inputFile, "i", os.Getenv("LINKLORE_INPUT_FILE"), "input file")
-	flag.StringVar(&outputFile, "o", os.Getenv("LINKLORE_OUTPUT_FILE"), "output file")
-	flag.StringVar(&baseDir, "d", os.Getenv("LINKLORE_BASE_DIR"), "base directory")
-	flag.StringVar(&prefix, "p", prefixDefault, "prefix")
-	flag.BoolVar(&force, "f", false, "force overwrite output file")
+func parseCommandLineFlags(config *Config) {
+	flag.StringVar(&config.inputFile, "i", "", "input file")
+	flag.StringVar(&config.outputFile, "o", "", "output file")
+	flag.StringVar(&config.baseDir, "d", "", "base directory")
+	flag.StringVar(&config.prefix, "p", "", "prefix")
+	ignorePatternsRaw := flag.String("x", "", "ignore patterns")
+	if *ignorePatternsRaw != "" {
+		config.ignorePatterns = strings.Split(*ignorePatternsRaw, ",")
+	}
+	flag.BoolVar(&config.force, "f", false, "force overwrite output file")
 
 	flag.Usage = func() {
 		fmt.Fprintf(flag.CommandLine.Output(), "Usage: %s -i <input> [options]\n", os.Args[0])
@@ -114,24 +150,29 @@ func loadConfig() Config {
 		fmt.Println(Version)
 		os.Exit(0)
 	}
+}
 
-	if baseDir == "" {
-		baseDir = "."
+func setDefaultValues(config *Config) {
+	if config.baseDir == "" {
+		config.baseDir = "."
 	}
-	if prefix == "" {
-		prefix = "/"
+	if config.prefix == "" {
+		config.prefix = "/"
 	}
-	if outputFile == "" {
-		outputFile = strings.TrimSuffix(config.inputFile, filepath.Ext(config.inputFile)) + ".out.md"
+	if config.outputFile == "" {
+		config.outputFile = strings.TrimSuffix(config.inputFile, filepath.Ext(config.inputFile)) + ".out.md"
 	}
+	if len(config.ignorePatterns) == 0 {
+		config.ignorePatterns = []string{".git", ".github", ".vscode", ".idea", ".env", "node_modules", ".obsidian", "*.out.md"}
+	}
+}
 
-	config.inputFile = inputFile
-	config.outputFile = outputFile
-	config.baseDir = baseDir
-	config.prefix = prefix
-	config.force = force
-
-	return config
+func getEnvOrDefault(key, defaultValue string) string {
+	value := os.Getenv(key)
+	if value != "" {
+		return value
+	}
+	return defaultValue
 }
 
 func buildIndex(config Config) error {
@@ -142,12 +183,26 @@ func buildIndex(config Config) error {
 			return err
 		}
 
+		for _, pattern := range config.ignorePatterns {
+			matched, err := filepath.Match(pattern, info.Name())
+			if err != nil {
+				return err
+			}
+			if matched {
+				if info.IsDir() {
+					return filepath.SkipDir
+				}
+				return nil
+			}
+		}
+
 		if !info.IsDir() {
 			ext := filepath.Ext(path)
 			basename := strings.TrimSuffix(info.Name(), ext)
 
-			if _, exists := config.index[basename]; exists {
-				return fmt.Errorf("duplicate key: %s", basename)
+			if entry, exists := config.index[basename]; exists {
+				context := fmt.Sprintf("path=%s", entry.path)
+				return fmt.Errorf("duplicate key: %s (context: %s)", basename, context)
 			}
 
 			relativePath, err := filepath.Rel(config.baseDir, path)
@@ -206,8 +261,13 @@ func replaceLink(config Config) func(string) string {
 
 		fileInfo, exists := config.index[base]
 		if !exists {
-			fmt.Printf("Error: file not found for link: %s\n", match)
-			return match
+			// try match without ext
+			baseWithoutExt := strings.TrimSuffix(base, filepath.Ext(base))
+			fileInfo, exists = config.index[baseWithoutExt]
+			if !exists {
+				fmt.Fprintf(os.Stderr, "error: file not found for link: %s\n", match)
+				return match
+			}
 		}
 
 		link := config.prefix + fileInfo.path
@@ -223,34 +283,44 @@ func replaceLink(config Config) func(string) string {
 	}
 }
 
-func loadEnvVariables(inputFile, outputFile, baseDir, prefix *string, force *bool) {
+func loadDotEnvVariables(config *Config) {
 	envFile, err := os.Open(".env")
 	if err != nil {
 		return
 	}
+
 	defer envFile.Close()
 
 	envScanner := bufio.NewScanner(envFile)
 	for envScanner.Scan() {
 		line := envScanner.Text()
+		line = strings.TrimSpace(line)
+
+		if strings.HasPrefix(line, "#") {
+			continue
+		}
+
 		parts := strings.SplitN(line, "=", 2)
 		if len(parts) != 2 {
 			continue
 		}
+
 		key, value := parts[0], parts[1]
 		switch strings.ToUpper(key) {
 		case "LINKLORE_INPUT_FILE":
-			*inputFile = value
+			config.inputFile = value
 		case "LINKLORE_OUTPUT_FILE":
-			*outputFile = value
+			config.outputFile = value
 		case "LINKLORE_BASE_DIR":
-			*baseDir = value
+			config.baseDir = value
 		case "LINKLORE_PREFIX":
-			*prefix = value
+			config.prefix = value
 		case "LINKLORE_BASE_URL":
-			*prefix = value
+			config.prefix = value
 		case "LINKLORE_FORCE":
-			*force = value == "true" || value == "1"
+			config.force = value == "true" || value == "1"
+		case "LINKLORE_IGNORE":
+			config.ignorePatterns = strings.Split(value, ",")
 		}
 	}
 }
