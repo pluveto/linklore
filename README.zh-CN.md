@@ -9,7 +9,7 @@ Linklore 可以从 Obsidian 笔记库导出一篇笔记，并解析所有依赖�
 可以使用以下命令执行程序：
 
 ```shell
-linklore -i <输入文件> [-d <目录>] [-o <输出文件>] [-p <前缀>] [-f]
+linklore -i <输入文件> [-d <目录>] [-o <输出文件>] [-p <前缀>] [-f] [-x <忽略的文件模式>]
 ```
 
 可用的选项包括：
@@ -19,6 +19,7 @@ linklore -i <输入文件> [-d <目录>] [-o <输出文件>] [-p <前缀>] [-f]
 - `-o <输出文件>`：指定处理后的内容保存的输出文件。（默认：`<输入文件的基本名称> + .out.md`）
 - `-p <前缀>`：设置真实链接的前缀。（默认：`/`）
 - `-f`：强制覆盖输出文件，如果已经存在。
+- `-x <忽略的文件模式>`：指定要忽略的文件的模式。（默认：`.git,.github,.vscode,.idea,.env,node_modules,.obsidian,*.out.md`）
 
 你也可以通过 `.env` 文件或环境变量来设置这些选项：
 
@@ -27,6 +28,7 @@ linklore -i <输入文件> [-d <目录>] [-o <输出文件>] [-p <前缀>] [-f]
 - `LINKLORE_BASE_DIR`
 - `LINKLORE_PREFIX` 或 `LINKLORE_BASE_URL`
 - `LINKLORE_FORCE`
+- `LINKLORE_IGNORE_PATTERNS`
 
 ## 工作原理
 
