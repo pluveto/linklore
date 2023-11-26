@@ -121,8 +121,8 @@ func loadConfig() Config {
 	if prefix == "" {
 		prefix = "/"
 	}
-	if config.outputFile == "" {
-		config.outputFile = strings.TrimSuffix(config.inputFile, filepath.Ext(config.inputFile)) + ".out.md"
+	if outputFile == "" {
+		outputFile = strings.TrimSuffix(config.inputFile, filepath.Ext(config.inputFile)) + ".out.md"
 	}
 
 	config.inputFile = inputFile
