@@ -270,9 +270,9 @@ func replaceLink(config Config) func(string) string {
 			}
 		}
 
-		link := config.prefix + fileInfo.path
+		link := config.prefix + slugify(fileInfo.path)
 		if anchor != "" {
-			link += "#" + anchor
+			link += "#" + slugify(anchor)
 		}
 
 		if alias == "" {
@@ -281,6 +281,31 @@ func replaceLink(config Config) func(string) string {
 
 		return fmt.Sprintf("[%s](%s)", alias, link)
 	}
+}
+
+func slugify(s string) string {
+	// TODO: permalink YAML key,
+	// see https://help.obsidian.md/Obsidian+Publish/Publish+and+unpublish+notes#Permalinks
+	// TODO: support custom slug rules / ruleset
+
+	// obsidian slug rules
+	// Example: "Bézout's Identity" -> "Bézout's-Identity"
+
+	// 1. replace space with -
+	slug := strings.ReplaceAll(s, " ", "-")
+
+	// 2. replace multiple - with single -
+	slug = strings.ReplaceAll(slug, "--", "-")
+
+	// 3. remove leading and trailing -
+	slug = strings.Trim(slug, "-")
+
+	// 4. encodeURIComponent
+	// slug = url.PathEscape(slug)
+
+	// remove .md suffix
+	slug = strings.TrimSuffix(slug, ".md")
+	return slug
 }
 
 func loadDotEnvVariables(config *Config) {
